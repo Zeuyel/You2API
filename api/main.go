@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -105,7 +106,26 @@ func reverseMapModelName(youModel string) string {
 	return "deepseek-chat"
 }
 
-var originalModel string
+var (
+	originalModel string
+	proxyPort    string
+)
+
+// 设置代理端口
+func SetProxyPort(port string) {
+	proxyPort = port
+}
+
+func getProxyClient() *http.Client {
+	proxyURL, _ := url.Parse(fmt.Sprintf("http://127.0.0.1:%s", proxyPort))
+	transport := &http.Transport{
+		Proxy: http.ProxyURL(proxyURL),
+	}
+	return &http.Client{
+		Transport: transport,
+		Timeout:   60 * time.Second,
+	}
+}
 
 func Handler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/v1/chat/completions" {
@@ -221,9 +241,7 @@ func getCookies(dsToken string) map[string]string {
 }
 
 func handleNonStreamingResponse(w http.ResponseWriter, youReq *http.Request) {
-	client := &http.Client{
-		Timeout: 60 * time.Second,
-	}
+	client := getProxyClient()
 	resp, err := client.Do(youReq)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -283,7 +301,7 @@ func handleNonStreamingResponse(w http.ResponseWriter, youReq *http.Request) {
 }
 
 func handleStreamingResponse(w http.ResponseWriter, youReq *http.Request) {
-	client := &http.Client{}
+	client := getProxyClient()
 	resp, err := client.Do(youReq)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
